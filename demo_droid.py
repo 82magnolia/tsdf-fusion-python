@@ -7,6 +7,9 @@ import cv2
 import numpy as np
 
 import fusion
+import sys
+import os
+import matplotlib.pyplot as plt
 
 
 if __name__ == "__main__":
@@ -16,15 +19,28 @@ if __name__ == "__main__":
 	# frustums in the dataset
 	# ======================================================================================================== #
 	print("Estimating voxel volume bounds...")
-	n_imgs = 1000
-	cam_intr = np.loadtxt("data/camera-intrinsics.txt", delimiter=' ')
+
+	recon_root = sys.argv[1]
+	disp_arr = np.load(os.path.join(recon_root, 'disps.npy'))
+	img_arr = np.load(os.path.join(recon_root, 'images.npy'))
+	intrinsics_arr = np.load(os.path.join(recon_root, 'intrinsics.npy')) * 8.0  # Droid-SLAM applies x8 multiplication
+	poses_arr = np.load(os.path.join(recon_root, 'poses_mtx.npy'))
+	masks_arr = np.load(os.path.join(recon_root, 'masks.npy'))
+
+	n_imgs = disp_arr.shape[0]
+	cam_intr = np.array([[intrinsics_arr[0, 0], 0., intrinsics_arr[0, 2]], [0., intrinsics_arr[0, 1], intrinsics_arr[0, 3]], [0., 0., 1.]])
 	vol_bnds = np.zeros((3,2))
+	disp_thres = 0.5  # Tunable threshold
+
+	ht, wd = disp_arr[0].shape
+	y, x = np.meshgrid(np.arange(ht).astype(float), np.arange(wd).astype(float))
+
 	for i in range(n_imgs):
 		# Read depth image and camera pose
-		depth_im = cv2.imread("data/frame-%06d.depth.png"%(i),-1).astype(float)
-		depth_im /= 1000.  # depth is saved in 16-bit PNG in millimeters
-		depth_im[depth_im == 65.535] = 0  # set invalid depth to 0 (specific to 7-scenes dataset)
-		cam_pose = np.loadtxt("data/frame-%06d.pose.txt"%(i))  # 4x4 rigid transformation matrix
+		disp_im = disp_arr[i]
+		depth_im = np.zeros_like(disp_im)
+		depth_im[(disp_im > disp_thres) & masks_arr[i]] = 1.0 / disp_im[(disp_im > disp_thres) & masks_arr[i]]
+		cam_pose = poses_arr[i]  # 4x4 rigid transformation matrix
 
 		# Compute camera view frustum and extend convex hull
 		view_frust_pts = fusion.get_view_frustum(depth_im, cam_intr, cam_pose)
@@ -37,7 +53,7 @@ if __name__ == "__main__":
 	# ======================================================================================================== #
 	# Initialize voxel volume
 	print("Initializing voxel volume...")
-	tsdf_vol = fusion.TSDFVolume(vol_bnds, voxel_size=0.02)
+	tsdf_vol = fusion.TSDFVolume(vol_bnds, voxel_size=0.01)
 
 	# Loop through RGB-D images and fuse them together
 	t0_elapse = time.time()
@@ -45,17 +61,14 @@ if __name__ == "__main__":
 		print("Fusing frame %d/%d"%(i+1, n_imgs))
 
 		# Read RGB-D image and camera pose
-		color_image = cv2.cvtColor(cv2.imread("data/frame-%06d.color.jpg"%(i)), cv2.COLOR_BGR2RGB)
-		depth_im = cv2.imread("data/frame-%06d.depth.png"%(i),-1).astype(float)
-		depth_im /= 1000.
-		depth_im[depth_im == 65.535] = 0
-		cam_pose = np.loadtxt("data/frame-%06d.pose.txt"%(i))
+		color_image = cv2.cvtColor(np.transpose(img_arr[i], [1, 2, 0]), cv2.COLOR_BGR2RGB)
+		disp_im = disp_arr[i]
+		depth_im = np.zeros_like(disp_im)
+		depth_im[(disp_im > disp_thres) & masks_arr[i]] = 1.0 / disp_im[(disp_im > disp_thres) & masks_arr[i]]
+		cam_pose = poses_arr[i]  # 4x4 rigid transformation matrix
 
 		# Integrate observation into voxel volume (assume color aligned with depth)
 		tsdf_vol.integrate(color_image, depth_im, cam_intr, cam_pose, obs_weight=1.)
-		
-		if i == 0:
-			break
 
 	fps = n_imgs / (time.time() - t0_elapse)
 	print("Average FPS: {:.2f}".format(fps))
