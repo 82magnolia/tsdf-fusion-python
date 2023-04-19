@@ -7,7 +7,11 @@ This is a lightweight python script that fuses multiple registered color and dep
 An older CUDA/C++ version can be found [here](https://github.com/andyzeng/tsdf-fusion).
 
 ## Requirements
-
+* First run the following
+  ```
+  conda create -n tsdf_fusion python=3.8
+  conda install -c conda-forge cudatoolkit-dev=11.3
+  ```
 * Python 2.7+ with [NumPy](http://www.numpy.org/), [PyCUDA](https://developer.nvidia.com/pycuda), [OpenCV](https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_tutorials.html), [Scikit-image](https://scikit-image.org/) and [Numba](https://numba.pydata.org/). These can be quickly installed/updated by running the following:
   ```shell
   pip install --user numpy opencv-python scikit-image numba
@@ -25,6 +29,12 @@ This demo fuses 1000 RGB-D images from the 7-scenes dataset into a 405 x 264 x 2
 
 ```shell
 python demo.py
+```
+
+## Running from DROID-SLAM reconstructions
+Use the following command.
+```
+python demo_droid.py DIRECTORY_TO_SAVED_DROID_RECONSTRUCTION
 ```
 
 ## Seen In
