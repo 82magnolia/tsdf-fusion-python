@@ -26,6 +26,12 @@ if __name__ == "__main__":
 	intrinsics_arr = np.load(os.path.join(recon_root, 'intrinsics.npy')) * 8.0  # Droid-SLAM applies x8 multiplication
 	poses_arr = np.load(os.path.join(recon_root, 'poses_mtx.npy'))
 	masks_arr = np.load(os.path.join(recon_root, 'masks.npy'))
+	
+	if os.path.exists(os.path.join(recon_root, 'scale.txt')):
+		with open(os.path.join(recon_root, 'scale.txt'), 'r') as f:
+			scale = float(f.readline())
+	else:
+		scale = 1.0
 
 	n_imgs = disp_arr.shape[0]
 	cam_intr = np.array([[intrinsics_arr[0, 0], 0., intrinsics_arr[0, 2]], [0., intrinsics_arr[0, 1], intrinsics_arr[0, 3]], [0., 0., 1.]])
@@ -76,9 +82,11 @@ if __name__ == "__main__":
 	# Get mesh from voxel volume and save to disk (can be viewed with Meshlab)
 	print("Saving mesh to mesh.ply...")
 	verts, faces, norms, colors = tsdf_vol.get_mesh()
+	verts = verts / scale
 	fusion.meshwrite("mesh.ply", verts, faces, norms, colors)
 
 	# Get point cloud from voxel volume and save to disk (can be viewed with Meshlab)
 	print("Saving point cloud to pc.ply...")
 	point_cloud = tsdf_vol.get_point_cloud()
+	point_cloud[:, :3] = point_cloud[:, :3] / scale
 	fusion.pcwrite("pc.ply", point_cloud)
