@@ -27,15 +27,17 @@ if __name__ == "__main__":
 	poses_arr = np.load(os.path.join(recon_root, 'poses_mtx.npy'))
 	masks_arr = np.load(os.path.join(recon_root, 'masks.npy'))
 	
-	if os.path.exists(os.path.join(recon_root, 'scale.txt')):
+	if os.path.exists(os.path.join(recon_root, 'scale.txt')):  # Known scale case
 		with open(os.path.join(recon_root, 'scale.txt'), 'r') as f:
 			scale = float(f.readline())
-		disp_thres = 2.0  # Large disparity threshold for known scale
-		voxel_size = 0.001
+		disp_thres = 1.0  # Large disparity threshold for known scale
+		voxel_size = 0.002
+		q_value = 0.05  # Quantile to filter view frustrums
 	else:
 		scale = 1.0
 		disp_thres = 0.5
 		voxel_size = 0.005
+		q_value = 0.0  # Quantile to filter view frustrums
 
 	n_imgs = disp_arr.shape[0]
 	cam_intr = np.array([[intrinsics_arr[0, 0], 0., intrinsics_arr[0, 2]], [0., intrinsics_arr[0, 1], intrinsics_arr[0, 3]], [0., 0., 1.]])
@@ -43,7 +45,7 @@ if __name__ == "__main__":
 
 	ht, wd = disp_arr[0].shape
 	y, x = np.meshgrid(np.arange(ht).astype(float), np.arange(wd).astype(float))
-
+	total_frust_pts = []
 	for i in range(n_imgs):
 		# Read depth image and camera pose
 		disp_im = disp_arr[i]
@@ -53,10 +55,12 @@ if __name__ == "__main__":
 
 		# Compute camera view frustum and extend convex hull
 		view_frust_pts = fusion.get_view_frustum(depth_im, cam_intr, cam_pose)
-		vol_bnds[:,0] = np.minimum(vol_bnds[:,0], np.amin(view_frust_pts, axis=1))
-		vol_bnds[:,1] = np.maximum(vol_bnds[:,1], np.amax(view_frust_pts, axis=1))
+		total_frust_pts.append(view_frust_pts.T)
 	# ======================================================================================================== #
-
+	total_frust_pts = np.concatenate(total_frust_pts, axis=0)  # (N, 3)
+	vol_bnds_min = np.quantile(total_frust_pts, q=q_value, axis=0)
+	vol_bnds_max = np.quantile(total_frust_pts, q=1 - q_value, axis=0)
+	vol_bnds = np.stack([vol_bnds_min, vol_bnds_max], axis=0).T
 	# ======================================================================================================== #
 	# Integrate
 	# ======================================================================================================== #
