@@ -30,13 +30,16 @@ if __name__ == "__main__":
 	if os.path.exists(os.path.join(recon_root, 'scale.txt')):
 		with open(os.path.join(recon_root, 'scale.txt'), 'r') as f:
 			scale = float(f.readline())
+		disp_thres = 2.0  # Large disparity threshold for known scale
+		voxel_size = 0.001
 	else:
 		scale = 1.0
+		disp_thres = 0.5
+		voxel_size = 0.005
 
 	n_imgs = disp_arr.shape[0]
 	cam_intr = np.array([[intrinsics_arr[0, 0], 0., intrinsics_arr[0, 2]], [0., intrinsics_arr[0, 1], intrinsics_arr[0, 3]], [0., 0., 1.]])
 	vol_bnds = np.zeros((3,2))
-	disp_thres = 0.5  # Tunable threshold
 
 	ht, wd = disp_arr[0].shape
 	y, x = np.meshgrid(np.arange(ht).astype(float), np.arange(wd).astype(float))
@@ -59,7 +62,7 @@ if __name__ == "__main__":
 	# ======================================================================================================== #
 	# Initialize voxel volume
 	print("Initializing voxel volume...")
-	tsdf_vol = fusion.TSDFVolume(vol_bnds, trunc_margin=5, voxel_size=0.005)
+	tsdf_vol = fusion.TSDFVolume(vol_bnds, trunc_margin=5, voxel_size=voxel_size)
 
 	# Loop through RGB-D images and fuse them together
 	t0_elapse = time.time()
